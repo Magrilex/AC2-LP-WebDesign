@@ -1,3 +1,4 @@
+
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
@@ -24,42 +25,62 @@ function TruncarDescricao(descricao, ComprimentoMaximo) {
 }
 
 app.get('/', (req, res) => {
-    let AgendasTable = '';
+  const filtro = req.query.disciplina;
+  let AgendasFiltradas = Agendas;
 
-    Agendas.forEach(agenda => {
-        const DescricaoTruncada = TruncarDescricao(agenda.descricao, 100);
-        AgendasTable += `
-        <tr>
-            <td><a href="/excluir-agendas">Excluir</a></td>
-            <td>${agenda.titulo}</td>
-            <td>${agenda.disciplina}</td>
-            <td>${DescricaoTruncada}</td>
-            <td>${agenda.dataEntrega}</td>
-            <td><a href="/atualizar-agendas">Editar</a></td>
-        </tr>
-        `;
-    });
+  if (filtro) {
+    AgendasFiltradas = Agendas.filter(agenda =>
+      agenda.disciplina.toLowerCase().includes(filtro.toLowerCase())
+    );
+  }
 
-    const htmlContent = fs.readFileSync('Inicio.html', 'utf-8');
-    const finalHtml = htmlContent.replace('{{AgendasTable}}', AgendasTable);
+  let AgendasTable = '';
 
-    res.send(finalHtml); 
+  AgendasFiltradas.forEach(agenda => {
+    const DescricaoTruncada = TruncarDescricao(agenda.descricao, 100);
+    const tituloEncoded = encodeURIComponent(agenda.titulo);
+
+    AgendasTable += `
+      <tr>
+        <td>
+          <a href="/excluir-agendas-confirmado?titulo=${tituloEncoded}" onclick="return confirm('Tem certeza que deseja excluir a agenda "${agenda.titulo}"?')">
+            Excluir
+          </a>
+        </td>
+        <td>${agenda.titulo}</td>
+        <td>${agenda.disciplina}</td>
+        <td>${DescricaoTruncada}</td>
+        <td>${agenda.dataEntrega}</td>
+        <td>
+          <a href="/atualizar-agendas?titulo=${tituloEncoded}">
+            Editar
+          </a>
+        </td>
+      </tr>
+    `;
+  });
+
+  const htmlContent = fs.readFileSync('Inicio.html', 'utf-8');
+  const finalHtml = htmlContent.replace('{{AgendasTable}}', AgendasTable);
+
+  res.send(finalHtml);
 });
+
 
 app.get('/inserir-agendas', (req, res) => {
     res.sendFile(path.join(__dirname, 'InserirAgendas.html'))
 });
 
 app.post('/inserir-agendas', (req, res) => {
-    const NovoArtigo = req.body;
+    const NovaAgenda = req.body;
 
-    if (Artigos.find(Artigos => Artigos.nome.toLowerCase() === NovoArtigo.nome.toLowerCase())) {
-        res.send(`<h1>Agenda já existe. Não é possível adicionar duplicatas.</h1><button><a href="/">Voltar</a></button>`);
+    if (Agendas.find(a => a.titulo.toLowerCase() === NovaAgenda.titulo.toLowerCase())) {
+        return res.send(`<h1>Agenda já existe.</h1><a href="/">Voltar</a>`);
     }
 
-    Artigos.push(NovoArtigo);
-    SalvarDados(Artigos);
-    res.send(`<h1>Agenda adicionado com sucesso!</h1><button><a href="/inserir-agendas">Voltar</a></button>`);
+    Agendas.push(NovaAgenda);
+    SalvarDados(Agendas);
+    res.send(`<h1>Agenda adicionada com sucesso!</h1><a href="/">Voltar</a>`);
 });
 
 app.get('/atualizar-agendas', (req, res) => {
@@ -67,58 +88,41 @@ app.get('/atualizar-agendas', (req, res) => {
 });
 
 app.post('/atualizar-agendas', (req, res) => {
-    const { titulo, NovaDescricao, NovaDisciplina, NovaDataEntrega } = req.body
+    const { titulo, NovaDescricao, NovaDisciplina, NovaDataEntrega } = req.body;
 
-    const AgendasIndex = Agendas.findIndex(Agenda => Agenda.titulo.toLowerCase() === titulo.toLowerCase());
+    const AgendasIndex = Agendas.findIndex(agenda => agenda.titulo.toLowerCase() === titulo.toLowerCase());
 
     if (AgendasIndex === -1) {
-        res.send(`<h1>Agenda não encontrada.</h1><button><a href="/atualizar-agendas">Voltar</a></button>`);
-        return;
+        return res.send(`<h1>Agenda não encontrada.</h1><button><a href="/">Voltar</a></button>`);
     }
 
-    Agendas[AgendasIndex].descricao = NovaDescricao
-    Agendas[AgendasIndex].disciplina = NovaDisciplina
-    Agendas[AgendasIndex].dataEntrega = NovaDataEntrega
+    Agendas[AgendasIndex].descricao = NovaDescricao;
+    Agendas[AgendasIndex].disciplina = NovaDisciplina;
+    Agendas[AgendasIndex].dataEntrega = NovaDataEntrega;
 
     SalvarDados(Agendas);
-    res.send(`<h1>Dados da Agenda atualizados com sucesso!</h1><button><a href="/atualizar-jogos">Volar</a></button>`);
+    res.send(`<h1>Dados da Agenda atualizados com sucesso!</h1><button><a href="/">Voltar</a></button>`);
 });
+
 
 app.get('/excluir-agendas', (req, res) => {
     res.sendFile(path.join(__dirname, 'ExcluirAgenda.html'));
 });
 
-app.post('/excluir-agendas', (req, res) =>{
-    const { titulo } = req.body;
+app.get('/excluir-agendas-confirmado', (req, res) => {
+    const titulo = req.query.titulo;
 
     const AgendasIndex = Agendas.findIndex(agenda => agenda.titulo.toLowerCase() === titulo.toLowerCase());
 
     if (AgendasIndex === -1) {
-        res.send(`<h1>Agenda não encontrada.</h1>`);
-        return;
+        return res.send(`<h1>Agenda não encontrada.</h1><a href="/">Voltar</a>`);
     }
 
-    res.send(`
-        <script>
-          if (confirm('Tem certeza de que deseja excluir a Agenda ${titulo}?')) {
-            window.location.href = '/excluir-agendas-confirmado?titulo=${titulo}';
-          } else {
-            window.location.href = '/excluir-agendas';
-          }
-        </script>
-    `);
-});
-
-app.get('/excluir-agendas-confirmado', (req, res) => {
-    const titulo = req.query.nome;
-
-    const AgendasIndex = Agendas.findIndex(agenda => agenda.titulo.toLowerCase() === titulo.toLocaleLowerCase());
-
     Agendas.splice(AgendasIndex, 1);
-
     SalvarDados(Agendas);
-    res.send(`<h1>A Agenda ${titulo} foi excluido com sucesso!</h1>`);
+    res.send(`<h1>Agenda "${titulo}" excluída com sucesso!</h1><a href="/">Voltar</a>`);
 });
+
 
 app.listen(port, () => {
     console.log(`Servidor Iniciando em http://localhost:${port}`);
