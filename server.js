@@ -50,11 +50,6 @@ app.get('/', (req, res) => {
         <td>${agenda.disciplina}</td>
         <td>${DescricaoTruncada}</td>
         <td>${agenda.dataEntrega}</td>
-        <td>
-          <a href="/atualizar-agendas?titulo=${tituloEncoded}">
-            Editar
-          </a>
-        </td>
       </tr>
     `;
   });
